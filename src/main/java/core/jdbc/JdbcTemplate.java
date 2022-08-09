@@ -1,11 +1,11 @@
 package core.jdbc;
 
-import next.model.User;
-
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 
 public abstract class JdbcTemplate {
 
@@ -19,24 +19,28 @@ public abstract class JdbcTemplate {
         }
     }
 
-    public User findByUserId(String sql) {
+    public <T> List<T> query(String sql, RowMapper<T> rowMapper) {
         try (Connection con = ConnectionManager.getConnection();
              PreparedStatement pstmt = con.prepareStatement(sql)) {
             setValues(pstmt);
-
             ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) {
-                String userId = rs.getString(1);
-                String password = rs.getString(2);
-                String name = rs.getString(3);
-                String email = rs.getString(4);
-                return new User(userId, password, name, email);
+            List<T> results = new ArrayList<>();
+            while (rs.next()) {
+                results.add(rowMapper.mapRow(rs));
             }
-            return null;
+            return results;
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
     }
 
-    public abstract void setValues(PreparedStatement pstmt) throws SQLException;
+    public <T> T queryForObject(String sql, RowMapper<T> rowMapper) {
+        List<T> results = query(sql, rowMapper);
+        if (results.size() != 1) {
+            throw new IllegalStateException();
+        }
+        return results.get(0);
+    }
+
+    protected abstract void setValues(PreparedStatement pstmt) throws SQLException;
 }
