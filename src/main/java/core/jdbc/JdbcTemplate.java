@@ -7,40 +7,42 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
-public abstract class JdbcTemplate {
+public class JdbcTemplate {
 
-    public void execute(String sql) {
+    public void execute(String sql, PreparedStatementSetter pss) {
         try (Connection con = ConnectionManager.getConnection();
-             PreparedStatement pstmt = con.prepareStatement(sql)) {
-            setValues(pstmt);
-            pstmt.executeUpdate();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            pss.setValues(ps);
+            ps.executeUpdate();
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new DataAccessException();
         }
     }
 
-    public <T> List<T> query(String sql, RowMapper<T> rowMapper) {
+    public <T> List<T> query(String sql, PreparedStatementSetter pss, RowMapper<T> rowMapper) {
         try (Connection con = ConnectionManager.getConnection();
-             PreparedStatement pstmt = con.prepareStatement(sql)) {
-            setValues(pstmt);
-            ResultSet rs = pstmt.executeQuery();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            pss.setValues(ps);
+            ResultSet rs = ps.executeQuery();
             List<T> results = new ArrayList<>();
             while (rs.next()) {
                 results.add(rowMapper.mapRow(rs));
             }
             return results;
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new DataAccessException();
         }
     }
 
-    public <T> T queryForObject(String sql, RowMapper<T> rowMapper) {
-        List<T> results = query(sql, rowMapper);
+    public <T> List<T> query(String sql, RowMapper<T> rowMapper) {
+        return query(sql, ps -> {}, rowMapper);
+    }
+
+    public <T> T queryForObject(String sql, PreparedStatementSetter pss, RowMapper<T> rowMapper) {
+        List<T> results = query(sql, pss, rowMapper);
         if (results.size() != 1) {
-            throw new IllegalStateException();
+            throw new DataAccessException();
         }
         return results.get(0);
     }
-
-    protected abstract void setValues(PreparedStatement pstmt) throws SQLException;
 }
